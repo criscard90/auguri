@@ -1,22 +1,53 @@
-/* Builder: form, upload, anteprima live, generazione link. */
+/* Builder: replica configurabile di buoncompleanno2026.
+ * Slide = foto + frase (come images[]/texts[] originali), musica, titolo,
+ * parametri (slideDuration ecc.), anteprima live = stesso motore BCShow. */
 (function () {
   'use strict';
-  var state = { theme: 'gold-night', confetti: 'default', photos: [], audioUrl: '', audioName: '', audioFile: null };
+  var slides = []; // {img:'', text:''}
+  var musicUrl = '', musicName = '';
   function $(s, r) { return (r || document).querySelector(s); }
-  function $all(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
-  function lim() { return (window.AUGURI_CONFIG && window.AUGURI_CONFIG.limits) || { maxPhotos: 10, maxPhotoMB: 5 }; }
+  function lim() { return ((window.AUGURI_CONFIG || {}).limits) || { maxSlides: 10, maxPhotoMB: 5 }; }
+  function dfl() { return ((window.AUGURI_CONFIG || {}).defaults) || {}; }
   function collect() {
-    return {
-      name: $('#f-name').value.trim(),
-      date: $('#f-date').value,
-      title: $('#f-title').value.trim() || 'Buon Compleanno!',
-      message: $('#f-msg').value.trim(),
-      theme: state.theme, confetti: state.confetti,
-      photos: state.photos.slice(),
-      audioUrl: state.audioUrl, audioName: state.audioName
-    };
+    return window.AuguriStore.normalize({
+      theme: $('#f-theme').value,
+      title: $('#f-title').value,
+      subtitle: $('#f-sub').value,
+      startLabel: $('#f-btn').value,
+      images: slides.map(function (s) { return s.img; }).filter(Boolean),
+      texts: slides.map(function (s) { return s.text; }),
+      musicUrl: musicUrl, musicName: musicName,
+      musicStartTime: +$('#f-mstart').value || 0,
+      slideDuration: (+$('#f-dur').value || 10) * 1000,
+      boostGapMin: (+$('#f-gapmin').value || 9) * 1000,
+      boostGapMax: (+$('#f-gapmax').value || 18) * 1000,
+      auguriBase: 'auguri/',
+      auguri: []
+    });
   }
-  function refreshPreview() { window.AuguriViewer.renderInto($('#livePreview'), collect()); }
+  function previewMount() {
+    var ov = $('#previewOverlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'previewOverlay';
+      ov.innerHTML = '<button class="btn btn-ghost close-prev" id="closePrev">Chiudi anteprima</button><div id="livePreview"></div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#closePrev').onclick = function () { try { window.BCShow.stop(); } catch (e) {} ov.classList.add('hidden'); };
+    }
+    return ov;
+  }
+  function preview() {
+    var ov = previewMount();
+    ov.classList.remove('hidden');
+    window.BCShow.play(ov.querySelector('#livePreview'), collect());
+  }
+  function previewStop() {
+    var ov = $('#previewOverlay');
+    if (ov) ov.classList.add('hidden');
+    try { window.BCShow.stop(); } catch (e) {}
+  }
+  var previewT = null;
+  function previewSoon() { /* anteprima solo su click: lo show e fullscreen */ }
   function setStatus(t) { var el = $('#genStatus'); if (el) el.textContent = t || ''; }
   function fileToDataURL(f) {
     return new Promise(function (res, rej) {
@@ -37,117 +68,126 @@
         var c = document.createElement('canvas');
         c.width = Math.round(w * sc); c.height = Math.round(h * sc);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        res(c.toDataURL('image/jpeg', .82));
+        res(c.toDataURL('image/jpeg', 0.82));
       };
       img.onerror = function () { res(dataUrl); };
       img.src = dataUrl;
     });
   }
-  async function addFiles(files) {
+  function useCloud() {
+    try {
+      var c = window.AuguriStore.cfg();
+      return !!(c.cloudinary.cloudName && c.cloudinary.imagePreset);
+    } catch (e) { return false; }
+  }
+  async function addSlideFiles(files) {
     var L = lim();
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       if (!f.type || f.type.indexOf('image/') !== 0) continue;
-      if (state.photos.length >= L.maxPhotos) { alert('Massimo ' + L.maxPhotos + ' foto.'); break; }
-      if (f.size > L.maxPhotoMB * 1048576) { alert('"' + f.name + '" supera ' + L.maxPhotoMB + ' MB e sara ridotta/compressa se possibile.'); }
-      var useCloud = window.AuguriStore.fbConfigured() || (window.AuguriStore.cfg().cloudinary.cloudName && window.AuguriStore.cfg().cloudinary.imagePreset);
+      if (slides.length >= (L.maxSlides || 10)) { alert('Massimo ' + (L.maxSlides || 10) + ' slide (come originale).'); break; }
+      if (f.size > (L.maxPhotoMB || 5) * 1048576) { alert('"' + f.name + '" supera ' + (L.maxPhotoMB || 5) + ' MB: verra compressa.'); }
       try {
-        if (useCloud) {
-          setStatus('Upload foto ' + (state.photos.length + 1) + ' su Cloudinary...');
-          var url = await window.AuguriStore.uploadCloudinary(f, 'image');
-          state.photos.push(url);
-        } else {
-          var du = await fileToDataURL(f);
-          du = await shrinkImage(du, 1280);
-          var j = 0;
-          while (encodeURIComponent(JSON.stringify(state.photos.concat([du]))).length > 3800000 && j < 3) { j++; du = await shrinkImage(du, 1280 - j * 280); }
-          state.photos.push(du);
-        }
-      } catch (e) { alert('Upload non riuscito, uso anteprima locale.'); try { state.photos.push(await shrinkImage(await fileToDataURL(f), 900)); } catch (e2) {} }
+        setStatus('Foto ' + (slides.length + 1) + '...');
+        var url;
+        if (useCloud()) url = await window.AuguriStore.uploadCloudinary(f, 'image');
+        else url = await shrinkImage(await fileToDataURL(f), 1280);
+        slides.push({ img: url, text: '' });
+      } catch (e) {
+        try { slides.push({ img: await shrinkImage(await fileToDataURL(f), 900), text: '' }); }
+        catch (e2) {}
+      }
     }
-    renderThumbs(); refreshPreview(); setStatus('');
+    setStatus('');
+    renderSlides(); previewSoon();
   }
-  function renderThumbs() {
-    var box = $('#thumbs');
+  function renderSlides() {
+    var box = $('#slideList');
     box.innerHTML = '';
-    state.photos.forEach(function (p, i) {
-      var d = document.createElement('div');
-      d.className = 'thumb';
-      d.innerHTML = '<img alt="Foto ' + (i + 1) + '"/><button aria-label="Rimuovi">×</button>';
-      d.querySelector('img').src = p;
-      d.querySelector('button').onclick = function () { state.photos.splice(i, 1); renderThumbs(); refreshPreview(); };
-      box.appendChild(d);
+    $('#slideCount').textContent = slides.length + ' / ' + (lim().maxSlides || 10);
+    slides.forEach(function (s, i) {
+      var row = document.createElement('div');
+      row.className = 'slide-row';
+      var th = s.img ? '<img src="' + s.img.replace(/"/g, '&quot;') + '" alt="Slide ' + (i + 1) + '"/>' : '<span class="nophoto">' + (i + 1) + '</span>';
+      row.innerHTML = '<div class="slide-thumb">' + th + '</div>' +
+        '<div class="slide-body"><b>Slide ' + (i + 1) + '</b>' +
+        '<textarea placeholder="Frase mostrata su questa foto (come texts[] originale)...">' + '</textarea>' +
+        '<div class="slide-ops"></div></div>';
+      var ta = row.querySelector('textarea');
+      ta.value = s.text || '';
+      ta.addEventListener('input', function () { s.text = ta.value; previewSoon(); });
+      var ops = row.querySelector('.slide-ops');
+      function mk(label, fn, dis) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn btn-mini'; b.textContent = label;
+        if (dis) b.disabled = true;
+        b.onclick = fn;
+        ops.appendChild(b);
+      }
+      mk('↑', function () { if (i > 0) { var t = slides[i-1]; slides[i-1] = slides[i]; slides[i] = t; renderSlides(); previewSoon(); } }, i === 0);
+      mk('↓', function () { if (i < slides.length - 1) { var t = slides[i+1]; slides[i+1] = slides[i]; slides[i] = t; renderSlides(); previewSoon(); } }, i === slides.length - 1);
+      mk('✕', function () { slides.splice(i, 1); renderSlides(); previewSoon(); });
+      box.appendChild(row);
     });
-    $('#photoCount').textContent = state.photos.length + ' / ' + lim().maxPhotos;
   }
-  async function onAudio(file) {
+  async function onMusic(file) {
     if (!file) return;
-    state.audioName = file.name;
-    state.audioFile = file;
-    var hasCloud = window.AuguriStore.cfg().cloudinary.cloudName && (window.AuguriStore.cfg().cloudinary.audioPreset || window.AuguriStore.cfg().cloudinary.imagePreset);
-    if (hasCloud) {
-      try { setStatus('Upload audio su Cloudinary...'); state.audioUrl = await window.AuguriStore.uploadCloudinary(file, 'audio'); }
-      catch (e) { state.audioUrl = ''; alert('Upload audio non riuscito: il biglietto sara senza audio su altri dispositivi.'); }
-      setStatus('');
-    } else if (file.size < 2500000) {
-      state.audioUrl = await fileToDataURL(file);
-    } else {
-      state.audioUrl = '';
-      alert('Audio troppo grande per il salvataggio locale. Configura Cloudinary per includerlo, oppure scegli un file < 2.5 MB.');
+    if (file.size > (lim().maxAudioMB || 12) * 1048576) { alert('Audio troppo grande (max ' + (lim().maxAudioMB || 12) + ' MB).'); return; }
+    musicName = file.name;
+    $('#audioName').textContent = musicName;
+    try {
+      if (useCloud()) { setStatus('Upload musica...'); musicUrl = await window.AuguriStore.uploadCloudinary(file, 'audio'); }
+      else musicUrl = await fileToDataURL(file);
+    } catch (e) {
+      try { musicUrl = await fileToDataURL(file); } catch (e2) {}
     }
-    $('#audioName').textContent = state.audioName + (state.audioUrl ? '' : ' (non incorporato)');
-    refreshPreview();
+    setStatus(''); previewSoon();
   }
   async function generate() {
-    var data = collect();
-    if (!data.name) { alert('Inserisci il nome del festeggiato.'); $('#f-name').focus(); return; }
-    setStatus('Generazione biglietto...');
+    var c = collect();
+    if (!c.images.length) { alert('Aggiungi almeno 1 foto (originale: 10).'); return; }
     $('#btnGen').disabled = true;
+    setStatus('Generazione link...');
     try {
-      var out = await window.AuguriStore.save(data);
+      var saved = await window.AuguriStore.save(c);
+      var url = window.AuguriStore.viewUrl(saved.id);
       var box = $('#result');
       box.classList.remove('hidden');
-      if (out.where === 'overflow') {
-        var purl = window.AuguriStore.portableUrl(data);
-        box.innerHTML = '<b>Spazio locale esaurito (foto pesanti).</b><br/>Usa il <b>link portabile</b> (dati dentro URL, senza backend):<br/><code>' + purl.slice(0, 120) + '...</code><br/><br/>' +
-          '<div class="row"><a class="btn btn-dark" target="_blank" rel="noopener" href="' + purl + '">Apri biglietto</a>' +
-          '<button class="btn btn-primary" id="copyP">Copia link</button></div>' +
-          '<p class="hint">Suggerimento: configura Firebase + Cloudinary per foto HD e URL corti, oppure riduci il numero di foto.</p>';
-        $('#copyP').onclick = function () { navigator.clipboard.writeText(purl); };
-      } else {
-        var url = window.AuguriStore.viewUrl(out.id);
-        box.innerHTML = '<b>\u2728 Biglietto pronto!</b><br/><br/><code id="linkOut">' + url + '</code><br/><br/>' +
-          '<div class="kv"><span>Conservato in:</span><b>' + (out.where === 'cloud' ? 'Cloud (Firebase)' : 'questo browser (locale)') + '</b>' +
-          '<span>Deletion Key:</span><code>' + out.deletionKey + '</code></div>' +
-          '<p class="hint">Conserva la Deletion Key: serve per eliminare il biglietto. Scade automaticamente dopo 30 giorni.</p>' +
-          '<div class="row"><a class="btn btn-dark" target="_blank" rel="noopener" href="' + url + '">Apri biglietto</a>' +
-          '<button class="btn btn-primary" id="copyL">Copia link</button>' +
-          '<button class="btn btn-ghost" style="color:#111;border-color:#111" id="waShare">WhatsApp</button>' +
-          '<button class="btn btn-danger" id="delNow">Elimina ora</button></div>';
-        $('#copyL').onclick = function () { navigator.clipboard.writeText(url).then(function(){ setStatus('Link copiato!'); }); };
-        $('#waShare').onclick = function () { location.href = 'https://wa.me/?text=' + encodeURIComponent('\uD83C\uDF82 ' + data.title + ' — ' + data.name + '! ' + url); };
-        $('#delNow').onclick = async function () {
-          if (!confirm('Eliminare subito questo biglietto?')) return;
-          await window.AuguriStore.remove(out.id, out.deletionKey);
-          setStatus('Biglietto eliminato.');
-          box.classList.add('hidden');
-        };
-      }
+      box.innerHTML = '<b>Biglietto pronto! (clone di buoncompleanno2026)</b><br/>' +
+        'Link da inviare: <code>' + url + '</code><br/>' +
+        '<button class="btn btn-primary" id="btnCopy">Copia link</button> ' +
+        '<a class="btn btn-dark" target="_blank" rel="noopener" href="' + url + '">Apri</a><br/>' +
+        '<small>Salvato in: <b>' + saved.where + '</b> · scade tra 30 giorni · Deletion key: <code>' + saved.deletionKey + '</code></small><br/>' +
+        '<small>Link portabile (solo testo/foto leggere, nessun server): <code id="portUrl"></code> <button class="btn btn-mini" id="btnPort">Copia</button></small><br/>' +
+        '<small>Elimina ora: <input id="delKey" placeholder="incolla deletion key"/> <button class="btn btn-danger btn-mini" id="btnDel">Elimina</button></small>';
+      $('#btnCopy').onclick = function () { try { navigator.clipboard.writeText(url); setStatus('Link copiato!'); } catch (e) { prompt('Copia il link:', url); } };
+      try { $('#portUrl').textContent = window.AuguriStore.portableUrl(c).slice(0, 120) + '...'; } catch (e) {}
+      $('#btnPort').onclick = function () { try { navigator.clipboard.writeText(window.AuguriStore.portableUrl(c)); setStatus('Link portabile copiato!'); } catch (e) { alert('Foto troppo pesanti per il link portabile: usa il link breve.'); } };
+      $('#btnDel').onclick = async function () {
+        try { await window.AuguriStore.remove(saved.id, $('#delKey').value.trim()); setStatus('Biglietto eliminato.'); box.classList.add('hidden'); }
+        catch (e) { alert('Eliminazione fallita: ' + e.message); }
+      };
       box.scrollIntoView({ behavior: 'smooth' });
     } catch (e) { alert('Errore generazione: ' + e.message); }
     $('#btnGen').disabled = false;
     setStatus('');
   }
   function demo() {
-    $('#f-name').value = 'Sofia';
-    $('#f-date').value = new Date().toISOString().slice(0, 10);
-    $('#f-title').value = 'Buon Compleanno!';
-    $('#f-msg').value = 'Cara Sofia,\nche questa giornata sia piena di sorrisi, musica e torta!\nTanti auguri! \uD83C\uDF82';
-    state.photos = [svg('S', '#f5c451'), svg('O', '#ff8a3d'), svg('F', '#c4b5fd')];
-    renderThumbs(); refreshPreview();
+    var D = dfl();
+    $('#f-title').value = 'Tocca per iniziare';
+    $('#f-sub').value = D.subtitle || 'Tocca i cuoricini per una sorpresa!';
+    $('#f-btn').value = 'Inizia';
+    $('#f-theme').value = 'originale';
+    slides = [
+      { img: svg('1'), text: 'Dicono che la memoria giochi brutti scherzi...' },
+      { img: svg('2'), text: 'Buon compleanno amore mio!' }
+    ];
+    musicUrl = ''; musicName = '';
+    $('#audioName').textContent = '';
+    renderSlides(); previewSoon();
   }
-  function svg(ch, color) {
-    var s = "<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600'><rect width='600' height='600' fill='#141126'/><circle cx='300' cy='270' r='150' fill='" + color + "'/><text x='300' y='330' font-size='180' text-anchor='middle' fill='#141126' font-family='Arial' font-weight='bold'>" + ch + "</text></svg>";
+  function svg(ch) {
+    var s = "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='800' height='600' fill='#401604'/><text x='400' y='340' font-size='200' text-anchor='middle' fill='#e8891c' font-family='Georgia'>" + ch + '</text></svg>';
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(s);
   }
   function cloudPanel() {
@@ -159,44 +199,32 @@
     $('#c-ap').value = cur.audioPreset || '';
     $('#cloudSave').onclick = function () {
       window.AuguriStore.saveCloudCfg({
-        BASE_URL: $('#c-base').value.trim(), databaseURL: $('#c-db').value.trim(),
+        BASE_URL: $('#f-base') ? $('#f-base').value.trim() : $('#c-base').value.trim(),
+        databaseURL: $('#c-db').value.trim(),
         cloudName: $('#c-cn').value.trim(), imagePreset: $('#c-ip').value.trim(), audioPreset: $('#c-ap').value.trim()
       });
       setStatus('Impostazioni cloud salvate.');
-      setTimeout(setStatus, 2000, '');
+      setTimeout(function () { setStatus(''); }, 2000);
     };
   }
   function init() {
     if (!$('#builderPage')) return;
-    $all('.theme-pick button').forEach(function (b) {
-      b.onclick = function () {
-        $all('.theme-pick button').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
-        b.setAttribute('aria-pressed', 'true');
-        state.theme = b.dataset.theme;
-        refreshPreview();
-      };
+    renderSlides();
+    ['f-title', 'f-sub', 'f-btn', 'f-theme', 'f-mstart', 'f-dur', 'f-gapmin', 'f-gapmax'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', previewSoon);
+      if (el) el.addEventListener('change', previewSoon);
     });
-    var cs = $('#f-confetti');
-    if (cs) cs.onchange = function () { state.confetti = cs.value; refreshPreview(); };
-    ['f-name', 'f-date', 'f-title', 'f-msg'].forEach(function (id) {
-      document.getElementById(id).addEventListener('input', refreshPreview);
-    });
-    var dz = $('#drop');
-    var fi = $('#f-photos');
+    var dz = $('#drop'), fi = $('#f-photos');
     dz.onclick = function () { fi.click(); };
-    fi.onchange = function () { addFiles(fi.files); fi.value = ''; };
+    fi.onchange = function () { addSlideFiles(fi.files); fi.value = ''; };
     ['dragover', 'dragenter'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('drag'); }); });
     ['dragleave', 'drop'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('drag'); }); });
-    dz.addEventListener('drop', function (e) { addFiles(e.dataTransfer.files); });
-    $('#f-audio').addEventListener('change', function (e) { onAudio(e.target.files[0]); });
+    dz.addEventListener('drop', function (e) { addSlideFiles(e.dataTransfer.files); });
+    $('#f-audio').addEventListener('change', function (e) { onMusic(e.target.files[0]); });
     $('#btnGen').onclick = generate;
+    if ($('#btnPreview')) $('#btnPreview').onclick = preview;
     $('#btnDemo').onclick = demo;
-    $('#btnPreviewMode').onclick = function () {
-      var ph = $('#livePreview');
-      var shell = ph.closest('.phone');
-      shell.classList.toggle('desktop');
-      $('#btnPreviewMode').textContent = shell.classList.contains('desktop') ? 'Vista: Desktop' : 'Vista: Mobile';
-    };
     cloudPanel();
     demo();
   }

@@ -1,16 +1,8 @@
-/* ============================================================
- * Configurazione centrale — repo: criscard90/auguri
- * ============================================================
- * BASE_URL: base pubblica su GitHub Pages. NON usare la vecchia
- * repo "buoncompleanno2026": il link generato deve essere
+/* Configurazione centrale — repo: criscard90/auguri
+ * Clone configurabile di criscard90/buoncompleanno2026:
+ * stesso motore slideshow (Ken Burns, foglie, cuoricini, auguri),
+ * ma dati dinamici via builder -> link breve:
  *   https://criscard90.github.io/auguri/#/view?id=...
- *
- * STORAGE: 'auto' prova Firebase (se configurato) -> localStorage.
- * Per attivare il cloud compila firebase.databaseURL (+ apiKey
- * se vuoi usare SDK) e cloudinary.cloudName + upload preset
- * unsigned. In alternativa imposta tutto dal pannello
- * "Impostazioni Cloud" nel builder (salvato in localStorage e
- * prioritario rispetto a questi placeholder).
  */
 window.AUGURI_CONFIG = {
   BASE_URL: 'https://criscard90.github.io/auguri',
@@ -23,18 +15,34 @@ window.AUGURI_CONFIG = {
   },
 
   cloudinary: {
-    cloudName: '',      // es. 'mio-cloud'
-    imagePreset: '',    // unsigned preset per immagini
-    audioPreset: ''     // unsigned preset per audio (può coincidere con imagePreset)
+    cloudName: '',
+    imagePreset: '', // unsigned preset per immagini
+    audioPreset: ''  // unsigned preset per audio (puo' coincidere con imagePreset)
   },
 
   limits: {
-    maxPhotos: 10,
+    maxSlides: 10,
     maxPhotoMB: 5,
     maxAudioMB: 12,
     ttlDays: 30,
-    maxLocalBytes: 4_500_000 // soglia prudenziale per link portabile / localStorage
+    maxLocalBytes: 4500000
   },
 
-  themes: ['gold-night', 'pastel', 'neon']
+  // Default = fedele all'originale buoncompleanno2026
+  defaults: {
+    theme: 'originale',
+    title: 'Tocca per iniziare',
+    subtitle: 'Tocca i cuoricini per una sorpresa!',
+    startLabel: 'Inizia',
+    musicStartTime: 0,
+    slideDuration: 10000,
+    boostGapMin: 9000,
+    boostGapMax: 18000,
+    auguriBase: 'auguri/',
+    auguri: [],
+    musicUrl: '',
+    images: [],
+    texts: ['']
+  }
 };
+

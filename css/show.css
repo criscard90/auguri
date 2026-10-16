@@ -1,0 +1,329 @@
+
+        .bc-view * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Sfondo con gradient */
+        .bc-view #background {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: radial-gradient(circle, rgba(232, 137, 28, 1) 0%, rgba(64, 22, 4, 1) 100%);
+            z-index: -1;
+        }
+        
+        body.bc-viewing {
+            overflow: hidden;
+            font-family: "Georgia", serif;
+            color: #f5f0e6;
+        }
+        
+        /* SLIDESHOW CONTAINER: gestisce il fade e nasconde l'overflow dello zoom */
+        .bc-view .slideshow {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            /* Rimosso background-size e background-position */
+            /* AGGIUNTO filter alla transizione per l'effetto blur */
+            transition: opacity 2s ease-in-out, filter 2s ease-in-out; 
+            filter: brightness(0.85);
+            overflow: hidden; /* **CRUCIALE per l'effetto Ken Burns** */
+        }
+
+        /* CLASSE AGGIUNTA: Attiva BLUR e scurisce durante il fade-out */
+        .bc-view .slideshow.transitioning {
+            filter: brightness(0.7) blur(10px); 
+        }
+
+        /* EFFETTO ZOOM-OUT AGGIUNTO al Ken Burns Layer */
+        .bc-view .slideshow.transitioning #kenburns-layer {
+            transform: scale(0.98); /* Zoom out leggero */
+            transition: transform 2s ease-in-out; /* Applica transizione LENTA al transform */
+        }
+        
+        /* KEN BURNS LAYER: gestisce l'immagine e l'animazione */
+        .bc-view #kenburns-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-size: cover;
+            background-position: center;
+            /* Inizialmente non trasformato */
+            transform: scale(1);
+            transition: transform 0s; /* Assicura un reset istantaneo della trasformazione */
+        }
+        
+        /* Keyframes per l'Effetto Ken Burns (Zoom/Pan) */
+        @keyframes kb-zoom-in {
+            0% { transform: scale(1.0); transform-origin: 50% 50%; }
+            100% { transform: scale(1.15); transform-origin: 50% 50%; }
+        }
+        
+        @keyframes kb-pan-up-right {
+            0% { transform: scale(1.15) translate(0, 0); transform-origin: 50% 50%; }
+            100% { transform: scale(1.25) translate(3%, -3%); transform-origin: 50% 50%; }
+        }
+        
+        @keyframes kb-zoom-out-down-left {
+            0% { transform: scale(1.2) translate(3%, -3%); transform-origin: 50% 50%; }
+            100% { transform: scale(1.05) translate(-3%, 3%); transform-origin: 50% 50%; }
+        }
+        
+        /* 4. Panoramica Lenta da Sinistra a Destra */
+        @keyframes kb-pan-left-right {
+            0% { 
+                transform: scale(1.15) translate(5%, 0); 
+                transform-origin: 50% 50%; /* Parte zoomando leggermente e posizionato a sinistra */
+            }
+            100% { 
+                transform: scale(1.15) translate(-5%, 0); 
+                transform-origin: 50% 50%; /* Arriva a destra mantenendo lo stesso zoom */
+            }
+        }
+        
+        /* 5. Zoom In focalizzato sull'Angolo Basso Destro */
+        @keyframes kb-zoom-in-bottom-right {
+            0% { 
+                transform: scale(1.0); 
+                transform-origin: 100% 100%; /* Inizia senza zoom, focalizzato in basso a destra */
+            }
+            100% { 
+                transform: scale(1.2); 
+                transform-origin: 100% 100%; /* Zooma verso il punto focale in basso a destra */
+            }
+        }
+        
+        /* 6. Zoom Out con Leggera Rotazione */
+        @keyframes kb-zoom-out-rotate {
+            0% { 
+                transform: scale(1.25) rotate(1deg); 
+                transform-origin: 50% 50%; /* Inizia zoomato e leggermente ruotato in senso orario */
+            }
+            100% { 
+                transform: scale(1.05) rotate(-2deg); 
+                transform-origin: 50% 50%; /* Zooma indietro e ruota leggermente in senso antiorario */
+            }
+        }
+        
+        
+        /* Classi per applicare le animazioni (Durata 10s - corrispondente a setInterval) */
+        .bc-view .kb-animation-1 { animation: kb-zoom-in 10s linear forwards; }
+        .bc-view .kb-animation-2 { animation: kb-pan-up-right 10s linear forwards; }
+        .bc-view .kb-animation-3 { animation: kb-zoom-out-down-left 10s linear forwards; }
+        .bc-view .kb-animation-4 { animation: kb-pan-left-right 10s linear forwards; }
+        .bc-view .kb-animation-5 { animation: kb-zoom-in-bottom-right 10s linear forwards; }
+        .bc-view .kb-animation-6 { animation: kb-zoom-out-rotate 10s linear forwards; }
+        
+        
+        .bc-view .overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.35);
+        }
+        
+        .bc-view .text {
+            position: absolute;
+            bottom: 18%;
+            width: 100%;
+            text-align: center;
+            font-size: 1.6rem;
+            line-height: 1.7;
+            padding: 0 12%;
+            color: #f5f0e6;
+            text-shadow: 0 0 10px rgba(0,0,0,0.4);
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+        
+        .bc-view .accent {
+            color: #e8a13a;
+        }
+        
+        .bc-view audio { display: none; }
+        
+        .bc-view #startScreen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: radial-gradient(circle at center, #2a1508 0%, #140a04 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 10;
+            transition: opacity 1s ease-in-out;
+        }
+        
+        .bc-view #startButton {
+            border: 2px solid #e8a13a;
+            color: #e8a13a;
+            padding: 0.8em 1.6em;
+            background: transparent;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: background 0.3s, color 0.3s;
+        }
+        
+        .bc-view #startButton:hover {
+            background: #e8a13a;
+            color: #1a0d04;
+        }
+        
+        
+        @media (max-width: 768px) {
+            .bc-view .text { font-size: 1.8rem; padding: 0 8%; }
+            .bc-view #startButton { font-size: 1rem; padding: 0.7em 1.4em; }
+        }
+        
+        .bc-view #particles {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .bc-view .particle {
+            position: absolute;
+            background: #fff;
+            opacity: 0.8;
+            pointer-events: none;
+            animation-name: float;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
+            /* Direzione di rotazione (impostata dal JS: 1 o -1) */
+            --spin: 1;
+            /* Forma a FOGLIA applicata come maschera (scala con la dimensione dell'elemento) */
+            -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 2 C78 28 96 40 50 98 C4 40 22 28 50 2 Z'/></svg>");
+            mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 2 C78 28 96 40 50 98 C4 40 22 28 50 2 Z'/></svg>");
+            -webkit-mask-size: contain;
+            mask-size: contain;
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+            mask-position: center;
+        }
+        
+        
+        @keyframes float {
+            0% {
+                transform: translate(0, 0) rotate(calc(0deg * var(--spin))) scale(1);
+                opacity: 1;
+            }
+            25% {
+                transform: translate(3vw, -25vh) rotate(calc(90deg * var(--spin))) scale(0.95);
+                opacity: 0.95;
+            }
+            50% {
+                transform: translate(-2.5vw, -50vh) rotate(calc(180deg * var(--spin))) scale(0.9);
+                opacity: 0.8;
+            }
+            75% {
+                transform: translate(2vw, -75vh) rotate(calc(270deg * var(--spin))) scale(0.75);
+                opacity: 0.4;
+            }
+            100% {
+                transform: translate(0, -100vh) rotate(calc(360deg * var(--spin))) scale(0.5);
+                opacity: 0;
+            }
+        }
+        
+        /* ===== CUORICINI INTERATTIVI ===== */
+        .bc-view #hearts {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 2;
+        }
+        
+        .bc-view .heart {
+            position: absolute;
+            pointer-events: auto;
+            cursor: pointer;
+            animation-name: floatHeart;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
+            --sway: 1;
+            background: #e23b4a;
+            -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 88 C50 88 12 60 12 33 C12 17 25 7 39 7 C46 7 50 12 50 12 C50 12 54 7 61 7 C75 7 88 17 88 33 C88 60 50 88 50 88 Z'/></svg>");
+            mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 88 C50 88 12 60 12 33 C12 17 25 7 39 7 C46 7 50 12 50 12 C50 12 54 7 61 7 C75 7 88 17 88 33 C88 60 50 88 50 88 Z'/></svg>");
+            -webkit-mask-size: contain;
+            mask-size: contain;
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+            mask-position: center;
+            filter: drop-shadow(0 0 10px rgba(226,59,74,0.65));
+        }
+        
+        .bc-view .heart-fragment {
+            position: absolute;
+            pointer-events: none;
+            background: #ff5d73;
+            -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 88 C50 88 12 60 12 33 C12 17 25 7 39 7 C46 7 50 12 50 12 C50 12 54 7 61 7 C75 7 88 17 88 33 C88 60 50 88 50 88 Z'/></svg>");
+            mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 88 C50 88 12 60 12 33 C12 17 25 7 39 7 C46 7 50 12 50 12 C50 12 54 7 61 7 C75 7 88 17 88 33 C88 60 50 88 50 88 Z'/></svg>");
+            -webkit-mask-size: contain;
+            mask-size: contain;
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+            mask-position: center;
+            animation: heartPop 1.1s ease-out forwards;
+        }
+        
+        @keyframes floatHeart {
+            0% {
+                transform: translate(0, 0) rotate(calc(-8deg * var(--sway))) scale(0.6);
+                opacity: 0;
+            }
+            12% {
+                opacity: 1;
+                transform: translate(1.5vw, -12vh) rotate(calc(8deg * var(--sway))) scale(1);
+            }
+            50% {
+                transform: translate(calc(-3vw * var(--sway)), -50vh) rotate(calc(-8deg * var(--sway))) scale(1.03);
+                opacity: 1;
+            }
+            88% {
+                opacity: 1;
+            }
+            100% {
+                transform: translate(2vw, -100vh) rotate(calc(8deg * var(--sway))) scale(0.95);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes heartPop {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx, 0), var(--ty, 0)) scale(0.2);
+                opacity: 0;
+            }
+        }
+        
+        .bc-view #endFade {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: black;
+            opacity: 0;
+            z-index: 20;
+            pointer-events: none;
+            transition: opacity 4s ease-in-out;
+        }
+        
+        
+        
+    
+
+/* Temi opzionali (default = originale fedele, non toccato) */
+.bc-view[data-theme="gold-night"] #background { background: radial-gradient(circle, rgba(120,80,220,1) 0%, rgba(10,8,25,1) 100%); }
+.bc-view[data-theme="pastel"] #background { background: radial-gradient(circle, rgba(255,182,193,1) 0%, rgba(120,140,200,1) 100%); }
+.bc-view[data-theme="pastel"] .text { color: #4a2340; text-shadow: 0 0 10px rgba(255,255,255,.5); }
+.bc-view[data-theme="neon"] #background { background: radial-gradient(circle, rgba(60,10,90,1) 0%, rgba(5,5,20,1) 100%); }
+.bc-view[data-theme="neon"] .text { color: #fff; text-shadow: 0 0 14px #ff2fb3, 0 0 30px #22e6ff; }
