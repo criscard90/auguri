@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Auguri — Pagina non trovata</title>
+  <script>
+    // Fallback SPA per GitHub Pages: preserva path + query dentro l'hash e torna a index.html.
+    // Es. /auguri/view?id=xxx -> /auguri/#/view?id=xxx
+    (function () {
+      var repo = '/auguri';
+      var path = location.pathname;
+      var after = path.indexOf(repo) === 0 ? path.slice(repo.length) : path;
+      var hash = location.hash || '';
+      var search = location.search || '';
+      // Se siamo già su hash-routing non fare nulla
+      if (hash.indexOf('#/') === 0) {
+        location.replace(repo + '/' + hash + (search ? (hash.indexOf('?') === -1 ? search.replace('?', '&').replace('&', '?') : '') : ''));
+        return;
+      }
+      var route = after.replace(/^\//, '');
+      var target = repo + '/#/' + route + search + hash;
+      location.replace(target);
+    })();
+  </script>
+</head>
+<body>
+  <p>Reindirizzamento… <a href="/auguri/#/">torna alla home</a></p>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Auguri — crea e condividi biglietti d'auguri multimediali con un link unico. Zero server, privacy by design." />
+  <title>Auguri — Crea il tuo biglietto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="logo">🎂</span><span class="brand">Auguri</span>
+    <nav><a class="btn btn-ghost" href="#/">Crea</a><a class="btn btn-ghost" href="#/privacy">Privacy</a></nav>
+  </header>
+  <main class="wrap">
+    <section id="builderPage">
+      <div class="grid2">
+        <div class="card">
+          <h2>🎨 Crea il tuo biglietto</h2>
+          <div class="field"><label for="f-name">Nome del festeggiato *</label><input id="f-name" type="text" placeholder="Es. Sofia" maxlength="60" /></div>
+          <div class="row">
+            <div class="field" style="flex:1;min-width:160px"><label for="f-date">Data dell'evento</label><input id="f-date" type="date" /></div>
+            <div class="field" style="flex:2;min-width:200px"><label for="f-title">Titolo della festa</label><input id="f-title" type="text" value="Buon Compleanno!" maxlength="80" /></div>
+          </div>
+          <div class="field"><label for="f-msg">Messaggio di auguri</label><textarea id="f-msg" placeholder="Scrivi un messaggio speciale..."></textarea></div>
+          <div class="field"><label>Tema di colori</label>
+            <div class="theme-pick">
+              <button data-theme="gold-night" aria-pressed="true">🌙<br/>Gold &amp; Night</button>
+              <button data-theme="pastel" aria-pressed="false">🌸<br/>Pastel</button>
+              <button data-theme="neon" aria-pressed="false">🎆<br/>Neon Party</button>
+            </div>
+          </div>
+          <div class="field"><label for="f-confetti">Stile coriandoli</label>
+            <select id="f-confetti"><option value="default">Classici multicolore</option><option value="pastel">Pastello delicati</option><option value="neon">Neon party</option><option value="minimal">Minimal (senza coriandoli)</option></select>
+          </div>
+          <div class="field"><label>Foto (fino a 10, max 5MB cad.) — <span id="photoCount">0 / 10</span></label>
+            <div class="drop" id="drop">📸 Trascina le foto qui o clicca per sceglierle<input id="f-photos" type="file" accept="image/*" multiple class="hidden" /></div>
+            <div class="thumbs" id="thumbs"></div>
+          </div>
+          <div class="field"><label for="f-audio">Musica di sottofondo (MP3/OGG/WAV)</label><input id="f-audio" type="file" accept="audio/*" /><small id="audioName" class="hint"></small></div>
+          <div class="row">
+            <button class="btn btn-primary" id="btnGen">✨ Genera Biglietto</button>
+            <button class="btn btn-dark" id="btnDemo">Prova demo</button>
+          </div>
+          <p class="hint" id="genStatus" role="status"></p>
+          <div id="result" class="success-box hidden"></div>
+          <details class="cloud">
+            <summary><b>⚙️ Impostazioni Cloud (opzionale)</b> — Firebase + Cloudinary per URL corti e foto HD</summary>
+            <div class="field"><label>Base URL pubblica</label><input id="c-base" type="text" /></div>
+            <div class="field"><label>Firebase databaseURL</label><input id="c-db" type="text" placeholder="https://...firebasedatabase.app" /><small>Senza questo, i biglietti restano nel localStorage di questo browser.</small></div>
+            <div class="row">
+              <div class="field" style="flex:1"><label>Cloudinary cloud name</label><input id="c-cn" type="text" /></div>
+              <div class="field" style="flex:1"><label>Preset immagini</label><input id="c-ip" type="text" /></div>
+              <div class="field" style="flex:1"><label>Preset audio</label><input id="c-ap" type="text" /></div>
+            </div>
+            <button class="btn btn-dark" id="cloudSave">Salva impostazioni</button>
+          </details>
+        </div>
+        <div class="preview-shell">
+          <div class="preview-toggle"><button class="btn btn-ghost" id="btnPreviewMode">Vista: Mobile</button><span class="hint" style="color:#cbd5e1">Anteprima live — si aggiorna mentre scrivi.</span></div>
+          <div class="stage"><div class="phone"><div id="livePreview"></div></div></div>
+        </div>
+      </div>
+    </section>
+    <section id="viewPage" class="hidden"><div id="viewMount"></div></section>
+    <section id="privacyPage" class="hidden privacy">
+      <div class="card">
+        <h2>🔒 Privacy &amp; GDPR</h2>
+        <p><b>Privacy by Design.</b> Nessuna registrazione, email, login o cookie di profilazione. I biglietti non sono indicizzati (<code>noindex, nofollow</code>) e gli ID sono stringhe ad alta entropia non enumerabili.</p>
+        <p><b>Conservazione:</b> i dati vivono su Firebase/Cloudinary (se configurati) o nel browser del creatore e si <b>autodistruggono dopo 30 giorni</b> (TTL). La scadenza è applicata anche in lettura.</p>
+        <p><b>Cancellazione:</b> al creatore viene fornita una <b>Deletion Key</b> per rimuovere subito biglietto e media (pulsante “Elimina ora”).</p>
+        <p><b>Link:</b> forma <code>https://criscard90.github.io/auguri/#/view?id=...</code>. I link portatili (<code>?d=...</code>) contengono i dati solo nell'URL: privacy al 100%, nessun server.</p>
+        <p><a href="#/">← Torna al builder</a></p>
+      </div>
+    </section>
+  </main>
+  <div class="lightbox" id="lightbox"><button class="close" aria-label="Chiudi">×</button><button class="nav prev" aria-label="Precedente">‹</button><img alt="Foto ingrandita" /><button class="nav next" aria-label="Successiva">›</button></div>
+  <footer class="site">🎂 <b>Auguri</b> · <code>criscard90/auguri</code> su GitHub Pages · <a href="#/privacy">Privacy</a> · i biglietti scadono dopo 30 giorni</footer>
+  <script src="js/config.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/viewer.js"></script>
+  <script src="js/builder.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
